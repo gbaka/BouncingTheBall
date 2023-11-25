@@ -31,9 +31,14 @@ let e_p = 0;
 let m = 100;
 // текущий момент времени
 let t = 0;
+// множитель при моментне инерции шара
+const alpha = 2/5;  
 
 // Квант времени
-const time_quantum = 0.03;
+const time_quantum = 0.035;
+
+// Скорость воспроизведения анимации
+let playback_speed = 1;
 
 
 // ФЛАГИ
@@ -44,32 +49,147 @@ let collisionY = false;
 let animationIsComplete = false;
 
 
+// ВСПОМОГАТЕЛЬНЫЕ СТРУКТУРЫ
+let collisions = []
+let collision_index = 0;
+
+
 // ФУНКЦИИ АНИМАЦИИ И ОБНОВЛЕНИЯ ПАРАМЕТРОВ
+function getCollisionVelocitiesComponents(plane_orientation, ball) {
+  let collision_info;
+  let velocities_components;
+
+  switch (plane_orientation) {
+    case "Vertical":
+      ball.position.x = a/2-r;
+      break;
+    case "Horizontal":
+      ball.position.y = r;
+      break;
+  }
+
+  if (playback_speed>0) { 
+    collision_info = collisions[collision_index]
+    if (!collision_info)  
+    {
+      velocities_components = getVelocitiesAfterBounce(plane_orientation);
+      collision_info = {
+        beforeCollision: [velocity_vector.x, velocity_vector.y, angular_velocity_vector.z],
+        afterCollision: velocities_components,
+        collisionPoint: [ball.position.x, ball.position.y, ball.position.z]
+      }
+      collisions.push(collision_info); 
+
+    } else {
+      velocities_components = collision_info["afterCollision"];
+    }
+    collision_index++;  
+
+  } else {
+
+    collision_info = collisions[collision_index-1];
+    if (!collision_info)  {  // => collision_indx - 1 < 0   =>   collision_indx = 0
+      velocities_components = getVelocitiesBeforeBounce(plane_orientation);
+
+      collision_info = {
+        afterCollision: [velocity_vector.x, velocity_vector.y, angular_velocity_vector.z],
+        beforeCollision: velocities_components,
+        collisionPoint: [ball.position.x, ball.position.y, ball.position.z]
+      }
+      collisions.unshift(collision_info);     
+
+    } else {
+      velocities_components = collision_info["beforeCollision"];
+      collision_index--;  
+    }
+  }
+
+  return [velocities_components, collision_info["collisionPoint"]];
+}
+
+
+function changePlaybackSpeed(controls) {
+  playback_speed = controls.playbackSpeed;
+}
+
+
+/**
+ * Функция определяет скорости после удара по скоростям до удара.
+ */
+function getVelocitiesAfterBounce(plane_orientation) {
+  switch (plane_orientation) {
+    case "Vertical":
+      return [
+        -e_o * velocity_vector.x, 
+        ((1 - alpha *e_p)*velocity_vector.y + alpha * (1 + e_p)*r*-angular_velocity_vector.z)/(1+alpha),
+        -((1 + e_p)*velocity_vector.y+ (alpha -e_p)*r*-angular_velocity_vector.z) / (r*(1+alpha))
+      ];
+    case "Horizontal": 
+      return [
+        ((1 - alpha *e_p)*velocity_vector.x + alpha * (1 +e_p)*r*-angular_velocity_vector.z)/(1+alpha),
+        -e_o * velocity_vector.y,
+        ((1 +e_p)*-velocity_vector.x + (alpha -e_p)*r*-angular_velocity_vector.z) / (r*(1+alpha))
+      ];
+  }
+}
+
+
+/**
+ * Функция определяет скорости до удара по скоростям после удара.
+ * (необходима для моделирования при обратном движении времени)
+ */
+function getVelocitiesBeforeBounce(plane_orientation) {
+  const A_1  = alpha*(1+e_p)*r/(1+alpha);
+  const A_2 = 1/(1-alpha*e_p);
+  const A_3 = (1+alpha)*(1-alpha*e_p);
+  const B_1 = -(1+e_p)/(r*(1+alpha));
+  const B_2 = (alpha-e_p)/(1+alpha);
+
+  const C_1 = (1-alpha*e_p)/(1+alpha);
+  const C_2 = (-alpha*(1+e_p)*r)/(1+alpha);
+  const D_1 = (1+e_p)/((1+alpha)*r);
+  const D_2 = ((e_p-alpha)/(1+alpha));
+
+  let omega_1;
+  switch (plane_orientation) {
+    case "Vertical":
+      omega_1 = (angular_velocity_vector.z - B_1*(velocity_vector.y+A_1)*A_2)/B_2
+      return [
+        -(1/e_o)*velocity_vector.x, 
+        (velocity_vector.y + A_1*omega_1)*A_2,
+        omega_1
+      ];
+    case "Horizontal": 
+      omega_1 = (D_1*velocity_vector.x-C_1*angular_velocity_vector.z)/(C_2*D_1+C_1*D_2);
+      return [
+        (velocity_vector.x+A_1*omega_1)*A_3,
+        -(1/e_o)*velocity_vector.y, 
+        omega_1
+      ];
+  }
+}
+
+
 function updateCollisions(ball) {
   const eps_v = 0.2;
   const eps_av = 0.002;
   const eps_r = 0.05;
 
-  if (velocity_vector.length() < eps_v && angular_velocity_vector.length()<eps_av && Math.abs(ball.position.y - r)< eps_r)  {
+  if (velocity_vector.length() < eps_v && angular_velocity_vector.length() < eps_av && Math.abs(ball.position.y - r) < eps_r)  {
     animationIsComplete = true;
     console.log("Animation is complete: the ball is close to the ground with low velocities");
   }
-
   if (ball.position.x + r > a/2) {
-    if (!collisionX) {
-      // множитель при моменте инерции для шара
-      const alpha = 2/5;  
+    if (!collisionX) {  
+      let collision_info = getCollisionVelocitiesComponents("Vertical", ball);
+      let [velocities_components, collision_point] = collision_info;
+      
+      [v_x_0, v_y_0, omega_0] = velocities_components;
+      [x_0, y_0, z_0] = collision_point;
 
-      x_0 = a/2 - r;
-      y_0 = ball.position.y;
-      z_0 = ball.position.z;
       phi_0 = ball.rotation.z;
-      v_x_0 = -e_o * velocity_vector.x;
-      v_y_0 = ((1 - alpha *e_p)*velocity_vector.y + alpha * (1 + e_p)*r*-angular_velocity_vector.z)/(1+alpha);
-      omega_0 = -((1 + e_p)*velocity_vector.y+ (alpha -e_p)*r*-angular_velocity_vector.z) / (r*(1+alpha));
-      t = 0;
-
       collisionX = true;
+      t = 0;
 
     } else if(velocity_vector.x > 0) { 
       // Если столкновение произошло, а компонента скорости по x до сих пор положительна - останавливаем анимацию
@@ -83,19 +203,16 @@ function updateCollisions(ball) {
 
   if (ball.position.y - r < 0){
     if (!collisionY) {
-      // множитель при моменте инерции для шара
-      const alpha = 2/5;  
 
-      x_0 = ball.position.x
-      y_0 = r
-      z_0 = ball.position.z
+      let collision_info = getCollisionVelocitiesComponents("Horizontal", ball);
+      let [velocities_components, collision_point] = collision_info;
+    
+      [v_x_0, v_y_0, omega_0] = velocities_components;
+      [x_0, y_0, z_0] = collision_point;
+
       phi_0 = ball.rotation.z
-      v_y_0 = -e_o * velocity_vector.y
-      v_x_0 = ((1 - alpha *e_p)*velocity_vector.x + alpha * (1 +e_p)*r*-angular_velocity_vector.z)/(1+alpha)
-      omega_0 = ((1 +e_p)*velocity_vector.x + (alpha -e_p)*r*-angular_velocity_vector.z) / (r*(1+alpha))
-      t = 0;
-
       collisionY = true;
+      t = 0;
 
     } else if(velocity_vector.y < 0) { 
       // Если столкновение произошло, а компонента скорости по y до сих пор отрицательна - останавливаем анимацию
@@ -252,6 +369,12 @@ function updateBallCoordsBounds(guiFolder, ball) {
   }  
 }
 
+function updatePlayButton(button) {
+  if (animationIsComplete) {
+    button.name("Моделирование завершено")
+  } 
+}
+
 
 function updateVisible(controls, velocity_arrow, angular_velocity_arrow, axis) {
   velocity_arrow.visible = controls.showVelocity;
@@ -364,11 +487,14 @@ function main() {
 
       showAngularVelocity: true,
       showVelocity: true,
-      showAxis: true
+      showAxis: true, 
+
+      playbackSpeed: 1
   };
 
   const gui = new dat.GUI();
-  // Ползунки
+
+  // Параметры
   const guiParameters = gui.addFolder('parameters');
   guiParameters.add(controls, 'ballMass', 50, 200).step(0.5);
   guiParameters.add(controls, 'ballRadius', 1, 5).step(0.5);
@@ -381,6 +507,7 @@ function main() {
   guiParameters.add(controls, 'orthogonalRestitutionCoefficient', 0, 1).step(0.1);
   guiParameters.add(controls, 'parallelRestitutionCoefficient', -1, 1).step(0.1);
 
+  // Доп.построения
   const guiVisible = gui.addFolder('visible');
   guiVisible.add(controls, "showAngularVelocity");
   guiVisible.add(controls, "showVelocity");
@@ -397,15 +524,25 @@ function main() {
       animationIsStarted = false;
       playAnimation = false; 
       animationIsComplete = false;
-      playButtonController.name("Старт")    
+      collisions = [];
+      collision_index = 0;
+      playButtonController.name("Старт");
     }
   };
   
-  // Кнопки
+  // Анимация
   const guiAnimation = gui.addFolder('animation');
+  guiAnimation.add(controls, "playbackSpeed", -2, 2).step(0.25)
+    .onChange(function() {
+      if (controls.playbackSpeed == 0) {
+        console.log("change")
+        controls.playbackSpeed = 0.25;
+      }
+    }
+  );
   const playButtonController =  guiAnimation .add(parameters, 'playButtonFunction').name('Старт');
-  const restartButtonController =  guiAnimation .add(parameters, 'restartButtonFunction').name('Перезапустить');
-
+  guiAnimation.add(parameters, 'restartButtonFunction').name('Перезапустить');
+  
 
   // ВСПОМОГАТЕЛЬНЫЕ ОСИ И ВЕКТОРА
   // Скорость
@@ -424,10 +561,11 @@ function main() {
   // ЦИКЛИЧЕСКИЙ РЕНДЕРИНГ СЦЕНЫ
   renderScene();
   function renderScene() {
-      if (playAnimation && !animationIsComplete) {
-        t += time_quantum;
+      if (playAnimation && !animationIsComplete) { 
+        t += playback_speed * time_quantum;
         moveBall(ball, t);     
-        updateCollisions(ball);   
+        updateCollisions(ball);  
+        changePlaybackSpeed(controls);
       }
       if (!animationIsStarted) {
         t = 0;
@@ -435,11 +573,13 @@ function main() {
         updateBallCoordsBounds(guiParameters, ball);
         updateBallRadius(ball);
       }
+      
       updateVelocityVector(t);
       updateAngularVelocityVector(t);
       updateVelocityArrowHelper(ball,velocityArrowHelper)
       updateAngularVelocityArrowHelper(ball, angularVelocityArrowHelper);
       updateVisible(controls, velocityArrowHelper, angularVelocityArrowHelper, axes);
+      updatePlayButton(playButtonController)
       requestAnimationFrame(renderScene);
       orbitControls.update()
       renderer.render(scene, camera);
