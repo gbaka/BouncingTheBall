@@ -395,18 +395,18 @@ function updatePointLight(pointLight, sphereLight, controls) {
 
 
 function main() {
-  // СЦЕНА, КАМЕРА И РЕНДЕРЕР
-  const scene = new THREE.Scene();
+  // СЦЕНЫ, КАМЕРА И РЕНДЕРЕР
   let camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.01, 10000);
 
   const renderer = new THREE.WebGLRenderer();
+  // renderer.setPixelRatio(window.devicePixelRatio);
   renderer.setClearColor(new THREE.Color(0x000000));
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.shadowMap.enabled = true;
   document.body.appendChild(renderer.domElement);
 
-  
-  // ПОЗИЦИЯ КАМЕРЫ
+  const scene = new THREE.Scene();
+  const bloomScene = new THREE.Scene();
   camera.position.set(-60, 80, 50);
   camera.lookAt(scene.position);
 
@@ -438,6 +438,7 @@ function main() {
   const wall = new THREE.Mesh(wallGeometry, planeMaterial);
   wall.position.set(a/2, a/2,0);
   wall.rotation.y = -0.5 * Math.PI
+  wall.receiveShadow = true;
 
 
   // МЯЧ
@@ -451,7 +452,7 @@ function main() {
   })
 
   // Мяч
-  const ball = new THREE.Mesh(sphereGeometry, new THREE.MeshStandardMaterial({
+  const ball = new THREE.Mesh(sphereGeometry, new THREE.MeshLambertMaterial({
     vertexColors: THREE.FaceColors // use face colors
   }));
   ball.position.x =  x_0;
@@ -494,7 +495,8 @@ function main() {
   pointLight.shadow.camera.far = 130;
   scene.add(pointLight);
   const sphereLightGeometry = new THREE.SphereGeometry(0);   // маленькая сфера, связанная с точечным источником света
-  const sphereLightMaterial = new THREE.MeshBasicMaterial({color: 0xffffff, emissive: 0x00ff00, emissiveIntensity: 0.5});
+  const sphereLightMaterial = new THREE.MeshBasicMaterial({color: 0xff0000});
+  
   
   // customShaderMaterial
   const sphereLight = new THREE.Mesh(sphereLightGeometry, sphereLightMaterial);
@@ -502,21 +504,8 @@ function main() {
   sphereLight.position.x = 1;
   sphereLight.position.y = 12;
   sphereLight.position.z = 1;
-  scene.add(sphereLight);
+  bloomScene.add(sphereLight);
 
-  const spriteMaterial = new THREE.SpriteMaterial( 
-    { 
-      map: new THREE.ImageUtils.loadTexture( './images/glow.png' ), 
-      useScreenCoordinates: false,
-      color: 0xaf0faf, transparent: false, blending: THREE.AdditiveBlending
-    }
-  );
-  const sprite = new THREE.Sprite( spriteMaterial );
-  sprite.scale.set(20, 20, 1.0);
-  sphereLight.add(sprite);
-  spriteMaterial.color.set("#00001a") // this centers the glow at the mesh
-  // sprite.scale.set(0,0,0)
-    
 
   // Направленный
   const dlColor = "#ccffcc";
@@ -711,6 +700,36 @@ function main() {
   scene.add(axes);
 
 
+  // КОМПОЗЕР
+  let W = window.innerWidth;
+  let H = window.innerHeight;
+
+  renderer.autoClear = false;
+  let clearPass = new THREE.ClearPass()
+
+  let basicRenderPass = new THREE.RenderPass(scene, camera)
+  basicRenderPass.clear = false
+  let bloomRenderPass = new THREE.RenderPass(bloomScene, camera)
+  bloomRenderPass.clear = false
+
+  let bloomPass = new THREE.UnrealBloomPass(new THREE.Vector2(W, H), 1.5, 0.4, 0.85 );
+  bloomPass.threshold = 0.0;
+  bloomPass.strength = 4;
+  bloomPass.radius = 1.0;
+
+  let outputPass = new THREE.ShaderPass(THREE.CopyShader)
+  outputPass.renderToScreen = true
+
+  const composer = new THREE.EffectComposer(renderer);
+  composer.setSize( W, H );
+
+  composer.addPass(outputPass)
+  composer.addPass(clearPass) 
+  composer.addPass(bloomRenderPass)
+  composer.addPass(bloomPass) 
+  composer.addPass(basicRenderPass)
+
+
   // ЦИКЛИЧЕСКИЙ РЕНДЕРИНГ СЦЕНЫ
   renderScene();
   function renderScene() {
@@ -733,9 +752,16 @@ function main() {
       updateAngularVelocityArrowHelper(ball, angularVelocityArrowHelper);
       updateVisible(controls, velocityArrowHelper, angularVelocityArrowHelper, axes);
       updatePlayButton(playButtonController)
-      requestAnimationFrame(renderScene);
+      
       orbitControls.update()
-      renderer.render(scene, camera);
+
+      // рендеринг и обработка композером (применение шейдеров)
+      composer.render()
+      // просто рендеринг 
+      // renderer.render(scene, camera);
+
+      requestAnimationFrame(renderScene);
   }
+  renderScene();
 }
 
