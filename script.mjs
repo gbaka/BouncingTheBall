@@ -174,12 +174,12 @@ function updateCollisions(ball) {
   const eps_v = 0.2;
   const eps_av = 0.002;
   const eps_r = 0.05;
-
   if (velocity_vector.length() < eps_v && angular_velocity_vector.length() < eps_av && Math.abs(ball.position.y - r) < eps_r)  {
     animationIsComplete = true;
     console.log("Animation is complete: the ball is close to the ground with low velocities");
   }
   if (ball.position.x + r > a/2) {
+    console.log("collision X")
     if (!collisionX) {  
       let collision_info = getCollisionVelocitiesComponents("Vertical", ball);
       let [velocities_components, collision_point] = collision_info;
@@ -202,6 +202,7 @@ function updateCollisions(ball) {
   }
 
   if (ball.position.y - r < 0){
+    console.log("collision X")
     if (!collisionY) {
 
       let collision_info = getCollisionVelocitiesComponents("Horizontal", ball);
@@ -223,6 +224,7 @@ function updateCollisions(ball) {
   } else {
     collisionY = false;
   }
+  console.log(velocity_vector.x, velocity_vector.y, angular_velocity_vector.z);
 } 
 
 
@@ -381,7 +383,16 @@ function updateVisible(controls, velocity_arrow, angular_velocity_arrow, axis) {
   angular_velocity_arrow.visible = controls.showAngularVelocity;
   axis.visible = controls.showAxis;
 }
-  
+
+
+function updatePointLight(pointLight, sphereLight, controls) {
+  sphereLight.position.x = controls.pointLightX;
+  sphereLight.position.y = controls.pointLightY;
+  sphereLight.position.z = controls.pointLightZ;
+  // sphereLight.material.color.set(controls.pointLightColor);
+  pointLight.position.copy(sphereLight.position);
+}
+
 
 function main() {
   // СЦЕНА, КАМЕРА И РЕНДЕРЕР
@@ -394,6 +405,11 @@ function main() {
   renderer.shadowMap.enabled = true;
   document.body.appendChild(renderer.domElement);
 
+  
+  // ПОЗИЦИЯ КАМЕРЫ
+  camera.position.set(-60, 80, 50);
+  camera.lookAt(scene.position);
+
 
   // ORBIT CONTROLS ДЛЯ ВРАЩЕНИЯ КАМЕРЫ
   const orbitControls = new THREE.OrbitControls(camera, renderer.domElement);
@@ -404,12 +420,13 @@ function main() {
 
   // ПОЛ И СТЕНА
   // Формы и материал объектов
-  const n = 4;
-  const groundGeometry = new THREE.PlaneGeometry(n*a, a);
-  const wallGeometry = new THREE.PlaneGeometry(a,a);
   const planeMaterial = new THREE.MeshLambertMaterial({
     color: 0xAAAAAA
   });
+  const n = 4;
+  const groundGeometry = new THREE.PlaneGeometry(n*a, a);
+  const wallGeometry = new THREE.PlaneGeometry(a,a);
+  
 
   // Пол
   const ground = new THREE.Mesh(groundGeometry, planeMaterial);
@@ -448,14 +465,12 @@ function main() {
   scene.add(ground);
   scene.add(wall)
 
-  // ПОЗИЦИЯ КАМЕРЫ
-  camera.position.set(-60, 80, 50);
-  camera.lookAt(scene.position);
-
 
   // СВЕТ
-  // Направленный
-  const spotLight = new THREE.SpotLight(0xFFFFFF, 2, 150);
+  // Прожекторный
+  let slColor = "#ffffff"
+  let slIntensity = 0.5;
+  const spotLight = new THREE.SpotLight(slColor, 2, 150);
   spotLight.position.set(-1.2*a, 2.5*a, 1.3*a);
   spotLight.castShadow = true;
   spotLight.shadow.mapSize = new THREE.Vector2(2048, 2048);
@@ -464,32 +479,114 @@ function main() {
   scene.add(spotLight);
 
   // Фонововый
-  const light = new THREE.AmbientLight( 0x404040 ,1); 
-  scene.add( light );
+  let ambColor = "#ccffcc";
+  let ambIntensity = 0.5;
+  let ambientLight = new THREE.AmbientLight(ambColor ,ambIntensity); 
+  console.log("intensity is ", ambientLight.intensity)
+  scene.add( ambientLight );
 
+  // Точечный 
+  const pointColor = "#ccffcc";
+  const pointLight = new THREE.PointLight(pointColor);
+  pointLight.distance = 100;
+  pointLight.castShadow = true;
+  pointLight.shadow.camera.near = 40;
+  pointLight.shadow.camera.far = 130;
+  scene.add(pointLight);
+  const sphereLightGeometry = new THREE.SphereGeometry(0);   // маленькая сфера, связанная с точечным источником света
+  const sphereLightMaterial = new THREE.MeshBasicMaterial({color: 0xffffff, emissive: 0x00ff00, emissiveIntensity: 0.5});
+  
+  // customShaderMaterial
+  const sphereLight = new THREE.Mesh(sphereLightGeometry, sphereLightMaterial);
+  //  const sphereLight = new THREE.Mesh(sphereLightGeometry, customShaderMaterial);
+  sphereLight.position.x = 1;
+  sphereLight.position.y = 12;
+  sphereLight.position.z = 1;
+  scene.add(sphereLight);
+
+  const spriteMaterial = new THREE.SpriteMaterial( 
+    { 
+      map: new THREE.ImageUtils.loadTexture( './images/glow.png' ), 
+      useScreenCoordinates: false,
+      color: 0xaf0faf, transparent: false, blending: THREE.AdditiveBlending
+    }
+  );
+  const sprite = new THREE.Sprite( spriteMaterial );
+  sprite.scale.set(20, 20, 1.0);
+  sphereLight.add(sprite);
+  spriteMaterial.color.set("#00001a") // this centers the glow at the mesh
+  // sprite.scale.set(0,0,0)
+    
+
+  // Направленный
+  const dlColor = "#ccffcc";
+  const dlIntensity = 0.5;
+  const directionalLight = new THREE.DirectionalLight(dlColor, dlIntensity);
+  directionalLight.position.set(-1.2*a, 2.5*a,  -1.3*a);
+  directionalLight.castShadow = true;
+  directionalLight.shadow.camera.near = 1;
+  directionalLight.shadow.camera.far = 130;
+  directionalLight.shadow.camera.left = -20;
+  directionalLight.shadow.camera.right = 100;
+  directionalLight.shadow.camera.top = 20;
+  directionalLight.shadow.camera.bottom = -80;
+  const shadowCamera = new THREE.CameraHelper(directionalLight.shadow.camera)
+  scene.add(directionalLight);
+
+  // Распределенный
+  const alColor = "#ccffcc";
+  const alIntensity = 5;
+  const areaLight = new THREE.RectAreaLight(alColor, alIntensity, n*a, a);
+  areaLight.lookAt(0, 1, 0);
+  areaLight.position.set(-a*(n-1)/2, 0, 0);
+  scene.add(areaLight);
+ 
 
   // GUI
-  // Параметры
+  // Варьируемые параметры
   const controls = {
+      // Параметры симуляции
       initBallX: x_0,
       initBallY: y_0,
       initVelocityX: v_x_0,
       initVelocityY: v_y_0,
       initAngularVelocity: omega_0,
-
-      mediumViscosityCoefficient: nu,
-      // коэф.сохранния вертикальной компоненты скорости (упругость)
-      orthogonalRestitutionCoefficient: e_o,
-      // коэф.сохранния параллельной компоненты скорости (трение) 
-      parallelRestitutionCoefficient: e_p,   
+      mediumViscosityCoefficient: nu, 
+      orthogonalRestitutionCoefficient: e_o,  // коэф.сохранния вертикальной компоненты скорости (упругость)
+      parallelRestitutionCoefficient: e_p,    // коэф.сохранния параллельной компоненты скорости (трение) 
       ballRadius: r,
       ballMass: m,
 
+      // Отображение вспомогательной графики
       showAngularVelocity: true,
       showVelocity: true,
       showAxis: true, 
+      
+      // Скорость симуляции
+      playbackSpeed: 1,
 
-      playbackSpeed: 1
+      // Свет
+      // фоновый
+      ambientColor: ambColor,
+      ambientIntensity: ambIntensity,
+      // прожекторный
+      disableSpotlight: false, 
+      spotLightColor: slColor,
+      spotLightIntensity: slIntensity,
+       // направленный
+      disableDirectionalLight: false, 
+      directionalLightColor: dlColor,
+      directionaLightIntensity: dlIntensity,
+      // точечный
+      pointLightColor : pointColor,
+      pointLightIntensity : 1,
+      pointLightDistance : 100,
+      pointLightX: a/4,
+      pointLightY: a,
+      pointLightZ: 0,
+      // распределенный
+      areaLightColor: alColor, 
+      areaLightIntensity: alIntensity
   };
 
   const gui = new dat.GUI();
@@ -507,7 +604,7 @@ function main() {
   guiParameters.add(controls, 'orthogonalRestitutionCoefficient', 0, 1).step(0.1);
   guiParameters.add(controls, 'parallelRestitutionCoefficient', -1, 1).step(0.1);
 
-  // Доп.построения
+  // Вспомогательная графика
   const guiVisible = gui.addFolder('visible');
   guiVisible.add(controls, "showAngularVelocity");
   guiVisible.add(controls, "showVelocity");
@@ -542,7 +639,63 @@ function main() {
   );
   const playButtonController =  guiAnimation .add(parameters, 'playButtonFunction').name('Старт');
   guiAnimation.add(parameters, 'restartButtonFunction').name('Перезапустить');
-  
+
+  // Свет
+  const guiLight = gui.addFolder('light');
+  // фоновый
+  const guiAmbientLight = guiLight.addFolder('ambient');
+  guiAmbientLight.addColor(controls, 'ambientColor').onChange(function (e) {
+    ambientLight.color = new THREE.Color(e);
+  });
+  guiAmbientLight.add(controls, 'ambientIntensity', 0, 2).step(0.1).onChange(
+  function updateAmbientLight(e) {
+    ambientLight.intensity = e;
+  });
+  // прожекторный
+  const guiSpotLight = guiLight.addFolder('spotLight');
+  guiSpotLight.addColor(controls, 'spotLightColor').onChange(function (e) {
+    spotLight.color = new THREE.Color(e);
+  });
+  guiSpotLight.add(controls, 'spotLightIntensity', 0, 3).onChange(function (e) {
+    spotLight.intensity = e;
+  });
+  guiSpotLight.add(controls, 'disableSpotlight').onChange(function (e) {
+    spotLight.visible = !e;
+  });
+  // направленный
+  const guiDirectionalLight = guiLight.addFolder('directionalLight');
+  guiDirectionalLight.addColor(controls, 'directionalLightColor').onChange(function (e) {
+    directionalLight.color = new THREE.Color(e);
+  });
+  guiDirectionalLight.add(controls, 'directionaLightIntensity', 0, 3).onChange(function (e) {
+    directionalLight.intensity = e;
+  });
+  guiDirectionalLight.add(controls, 'disableDirectionalLight').onChange(function (e) {
+    directionalLight.visible = !e;
+  });
+  // точечный
+  const guiPointLight = guiLight.addFolder('pointLight');
+  guiPointLight.addColor(controls, 'pointLightColor').onChange(function (e) {
+    pointLight.color = new THREE.Color(e);
+  });
+  guiPointLight.add(controls, 'pointLightIntensity', 0, 3).onChange(function (e) {
+      pointLight.intensity = e;
+  });
+  guiPointLight.add(controls, 'pointLightDistance', 0, 100).onChange(function (e) {
+      pointLight.distance = e;
+  });
+  guiPointLight.add(controls, "pointLightX", -a/2, a/2-r-0.5*r).step(0.5);
+  guiPointLight.add(controls, "pointLightY", -a/2, a/2-r-0.5*r).step(0.5);
+  guiPointLight.add(controls, "pointLightZ", -a/2, a/2-r-0.5*r).step(0.5);
+  // распределенный
+  const guiAreaLight = guiLight.addFolder('areaLight');
+  guiAreaLight.addColor(controls, 'areaLightColor').onChange(function (e) {
+    areaLight.color = new THREE.Color(e);
+  });
+  guiAreaLight.add(controls, 'areaLightIntensity', 0, 5).onChange(function (e) {
+    areaLight.intensity = e;
+  });
+
 
   // ВСПОМОГАТЕЛЬНЫЕ ОСИ И ВЕКТОРА
   // Скорость
@@ -573,7 +726,7 @@ function main() {
         updateBallCoordsBounds(guiParameters, ball);
         updateBallRadius(ball);
       }
-      
+      updatePointLight(pointLight, sphereLight, controls, ambColor);
       updateVelocityVector(t);
       updateAngularVelocityVector(t);
       updateVelocityArrowHelper(ball,velocityArrowHelper)
