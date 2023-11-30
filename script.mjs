@@ -50,8 +50,16 @@ let animationIsComplete = false;
 
 
 // ВСПОМОГАТЕЛЬНЫЕ СТРУКТУРЫ
+// учет столкновений
 let collisions = []
 let collision_index = 0;
+// абсолютно черынй материал для корректного рендеринга выборочного unrealBloom
+const darkMaterial = new THREE.MeshBasicMaterial( { color: 'black' } );
+const materials = {};
+// отдельный слой для светящихся тел 
+const BLOOM_SCENE = 1;
+const bloomLayer = new THREE.Layers();
+bloomLayer.set( BLOOM_SCENE );
 
 
 // ФУНКЦИИ АНИМАЦИИ И ОБНОВЛЕНИЯ ПАРАМЕТРОВ
@@ -337,17 +345,47 @@ function updateAngularVelocityVector(t) {
 
 function updateVelocityArrowHelper(ball, arrows){
   const optimizing_coef = 3;
+  const head_length = 2.5;
+  const head_width = 1;
+  const delta = 0.001
+  const vector_length = velocity_vector.length();
   arrows.position.copy(ball.position);
-  arrows.setDirection(velocity_vector.clone().normalize());  
-  arrows.setLength(velocity_vector.length()/optimizing_coef, 2.5, 1);
+
+  if (vector_length == 0) {
+    arrows.setLength(1)
+    arrows.visible = false;
+  }
+  else if ( vector_length/optimizing_coef < head_length) {
+    arrows.setLength(head_length + delta, head_length, head_width);
+    arrows.setDirection(velocity_vector.clone().normalize());  
+  }
+  else {
+    arrows.setLength(vector_length/optimizing_coef + delta, head_length, head_width);
+    arrows.setDirection(velocity_vector.clone().normalize());  
+  } 
 }
 
 
 function updateAngularVelocityArrowHelper(ball, arrows){
   const optimizing_coef = 0.5;
+  const head_length = 2.5;
+  const head_width = 1;
+  const delta = 0.001
+  const vector_length = angular_velocity_vector.length();
   arrows.position.copy(ball.position);
-  arrows.setDirection(angular_velocity_vector.clone().normalize());  
-  arrows.setLength(angular_velocity_vector.length()/optimizing_coef, 2.5, 1);
+
+  if (vector_length == 0) {
+    arrows.setLength(1)
+    arrows.visible = false;
+  }
+  else if ( vector_length/optimizing_coef < head_length) {
+    arrows.setLength(head_length + delta, head_length, head_width);
+    arrows.setDirection(angular_velocity_vector.clone().normalize());  
+  }
+  else {
+    arrows.setLength(vector_length/optimizing_coef + delta, head_length, head_width);
+    arrows.setDirection(angular_velocity_vector.clone().normalize());  
+  } 
 }
 
 
@@ -371,6 +409,7 @@ function updateBallCoordsBounds(guiFolder, ball) {
   }  
 }
 
+
 function updatePlayButton(button) {
   if (animationIsComplete) {
     button.name("Моделирование завершено")
@@ -389,8 +428,32 @@ function updatePointLight(pointLight, sphereLight, controls) {
   sphereLight.position.x = controls.pointLightX;
   sphereLight.position.y = controls.pointLightY;
   sphereLight.position.z = controls.pointLightZ;
-  // sphereLight.material.color.set(controls.pointLightColor);
+  // sphereLight.material.color = controls.pointColor;
   pointLight.position.copy(sphereLight.position);
+}
+
+
+/* 
+* Функция задает черный материал несветящимся телам для корректного 
+* применения эффекта unrelBloom к светящимся телам
+**/
+function darkenNonBloomed( obj ) {
+  // + obj.isMesh && 
+  if ( bloomLayer.test( obj.layers ) === false ) {
+    materials[ obj.uuid ] = obj.material;
+    obj.material = darkMaterial;
+  }
+}
+
+
+/* 
+* Возвращает несветящимся телам исходный материал
+**/
+function restoreMaterial( obj ) {
+    if ( materials[ obj.uuid ] ) {
+      obj.material = materials[ obj.uuid ];
+      delete materials[ obj.uuid ];
+    }
 }
 
 
@@ -399,14 +462,12 @@ function main() {
   let camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.01, 10000);
 
   const renderer = new THREE.WebGLRenderer();
-  // renderer.setPixelRatio(window.devicePixelRatio);
   renderer.setClearColor(new THREE.Color(0x000000));
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.shadowMap.enabled = true;
   document.body.appendChild(renderer.domElement);
 
   const scene = new THREE.Scene();
-  const bloomScene = new THREE.Scene();
   camera.position.set(-60, 80, 50);
   camera.lookAt(scene.position);
 
@@ -418,6 +479,60 @@ function main() {
   orbitControls.panSpeed = 0.8
 
 
+  // КОМПОЗЕР И ШЕЙДЕРЫ
+  let W = window.innerWidth;
+  let H = window.innerHeight;
+  renderer.autoClear = false;
+
+  // слои 
+
+  
+
+
+  // объявление композеров
+  const bloomComposer = new THREE.EffectComposer( renderer );
+  bloomComposer.renderToScreen = false;
+  const finalComposer = new THREE.EffectComposer(renderer);
+  bloomComposer.renderToScreen = true;
+
+  // pass'ы
+  let clearPass = new THREE.ClearPass()
+
+  let renderPass = new THREE.RenderPass(scene, camera)
+  renderPass.clear = false
+
+  let bloomPass = new THREE.UnrealBloomPass(new THREE.Vector2(W, H), 1.5, 0.4, 0.85 );
+  bloomPass.threshold = 0.0;
+  bloomPass.strength = 5;
+  bloomPass.radius = 1.0;
+
+  let outputPass = new THREE.ShaderPass(THREE.CopyShader);
+  outputPass.renderToScreen = true
+
+  const mixPass = new THREE.ShaderPass(
+    new THREE.ShaderMaterial( {
+        uniforms: {
+            baseTexture: { value: null },
+            bloomTexture: { value: bloomComposer.renderTarget2.texture }
+        },
+        vertexShader: document.getElementById( 'vertexshader' ).textContent,
+        fragmentShader: document.getElementById( 'fragmentshader' ).textContent,
+        defines: {}
+    } ), 'baseTexture'
+  );
+  mixPass.needsSwap = true;
+
+  // закрепление pass'ов
+  finalComposer.addPass(clearPass); // ??
+  finalComposer.addPass( renderPass );
+  finalComposer.addPass( mixPass );
+  finalComposer.addPass( outputPass );
+
+  bloomComposer.addPass(clearPass);  // ??
+  bloomComposer.addPass( renderPass );
+  bloomComposer.addPass( bloomPass );
+
+
   // ПОЛ И СТЕНА
   // Формы и материал объектов
   const planeMaterial = new THREE.MeshLambertMaterial({
@@ -425,8 +540,7 @@ function main() {
   });
   const n = 4;
   const groundGeometry = new THREE.PlaneGeometry(n*a, a);
-  const wallGeometry = new THREE.PlaneGeometry(a,a);
-  
+  const wallGeometry = new THREE.PlaneGeometry(a,a); 
 
   // Пол
   const ground = new THREE.Mesh(groundGeometry, planeMaterial);
@@ -487,24 +601,24 @@ function main() {
   scene.add( ambientLight );
 
   // Точечный 
-  const pointColor = "#ccffcc";
-  const pointLight = new THREE.PointLight(pointColor);
+  const plColor = "#ff00ff";
+  const plintensity = 2;
+  const plDistance = 100;
+  const pointLight = new THREE.PointLight(plColor);
   pointLight.distance = 100;
   pointLight.castShadow = true;
   pointLight.shadow.camera.near = 40;
   pointLight.shadow.camera.far = 130;
   scene.add(pointLight);
-  const sphereLightGeometry = new THREE.SphereGeometry(0);   // маленькая сфера, связанная с точечным источником света
-  const sphereLightMaterial = new THREE.MeshBasicMaterial({color: 0xff0000});
-  
-  
-  // customShaderMaterial
+
+  const sphereLightGeometry = new THREE.SphereGeometry(1);   // маленькая сфера, связанная с точечным источником света
+  const sphereLightMaterial = new THREE.MeshBasicMaterial({color: plColor});
   const sphereLight = new THREE.Mesh(sphereLightGeometry, sphereLightMaterial);
-  //  const sphereLight = new THREE.Mesh(sphereLightGeometry, customShaderMaterial);
-  sphereLight.position.x = 1;
-  sphereLight.position.y = 12;
-  sphereLight.position.z = 1;
-  bloomScene.add(sphereLight);
+  sphereLight.position.x = a/4;
+  sphereLight.position.y = a;
+  sphereLight.position.z = 0;
+  scene.add(sphereLight);
+  sphereLight.layers.enable(BLOOM_SCENE)  // добавляем объект к категории светящихся
 
 
   // Направленный
@@ -534,48 +648,48 @@ function main() {
   // GUI
   // Варьируемые параметры
   const controls = {
-      // Параметры симуляции
-      initBallX: x_0,
-      initBallY: y_0,
-      initVelocityX: v_x_0,
-      initVelocityY: v_y_0,
-      initAngularVelocity: omega_0,
-      mediumViscosityCoefficient: nu, 
-      orthogonalRestitutionCoefficient: e_o,  // коэф.сохранния вертикальной компоненты скорости (упругость)
-      parallelRestitutionCoefficient: e_p,    // коэф.сохранния параллельной компоненты скорости (трение) 
-      ballRadius: r,
-      ballMass: m,
+    // Параметры симуляции
+    initBallX: x_0,
+    initBallY: y_0,
+    initVelocityX: v_x_0,
+    initVelocityY: v_y_0,
+    initAngularVelocity: omega_0,
+    mediumViscosityCoefficient: nu, 
+    orthogonalRestitutionCoefficient: e_o,  // коэф.сохранния вертикальной компоненты скорости (упругость)
+    parallelRestitutionCoefficient: e_p,    // коэф.сохранния параллельной компоненты скорости (трение) 
+    ballRadius: r,
+    ballMass: m,
 
-      // Отображение вспомогательной графики
-      showAngularVelocity: true,
-      showVelocity: true,
-      showAxis: true, 
-      
-      // Скорость симуляции
-      playbackSpeed: 1,
+    // Отображение вспомогательной графики
+    showAngularVelocity: true,
+    showVelocity: true,
+    showAxis: true, 
+    
+    // Скорость симуляции
+    playbackSpeed: 1,
 
-      // Свет
-      // фоновый
-      ambientColor: ambColor,
-      ambientIntensity: ambIntensity,
-      // прожекторный
-      disableSpotlight: false, 
-      spotLightColor: slColor,
-      spotLightIntensity: slIntensity,
-       // направленный
-      disableDirectionalLight: false, 
-      directionalLightColor: dlColor,
-      directionaLightIntensity: dlIntensity,
-      // точечный
-      pointLightColor : pointColor,
-      pointLightIntensity : 1,
-      pointLightDistance : 100,
-      pointLightX: a/4,
-      pointLightY: a,
-      pointLightZ: 0,
-      // распределенный
-      areaLightColor: alColor, 
-      areaLightIntensity: alIntensity
+    // Свет
+    // фоновый
+    ambientColor: ambColor,
+    ambientIntensity: ambIntensity,
+    // прожекторный
+    disableSpotlight: false, 
+    spotLightColor: slColor,
+    spotLightIntensity: slIntensity,
+      // направленный
+    disableDirectionalLight: false, 
+    directionalLightColor: dlColor,
+    directionaLightIntensity: dlIntensity,
+    // точечный
+    pointLightColor : plColor,
+    pointLightIntensity : plintensity,
+    pointLightDistance : plDistance,
+    pointLightX: a/4,
+    pointLightY: a,
+    pointLightZ: 0,
+    // распределенный
+    areaLightColor: alColor, 
+    areaLightIntensity: alIntensity
   };
 
   const gui = new dat.GUI();
@@ -666,16 +780,18 @@ function main() {
   const guiPointLight = guiLight.addFolder('pointLight');
   guiPointLight.addColor(controls, 'pointLightColor').onChange(function (e) {
     pointLight.color = new THREE.Color(e);
+    sphereLight.material.color.set(e)
   });
   guiPointLight.add(controls, 'pointLightIntensity', 0, 3).onChange(function (e) {
       pointLight.intensity = e;
+      bloomPass.strength = e**2;
   });
   guiPointLight.add(controls, 'pointLightDistance', 0, 100).onChange(function (e) {
       pointLight.distance = e;
   });
-  guiPointLight.add(controls, "pointLightX", -a/2, a/2-r-0.5*r).step(0.5);
-  guiPointLight.add(controls, "pointLightY", -a/2, a/2-r-0.5*r).step(0.5);
-  guiPointLight.add(controls, "pointLightZ", -a/2, a/2-r-0.5*r).step(0.5);
+  guiPointLight.add(controls, "pointLightX", -4*a, a/2-1).step(0.5);
+  guiPointLight.add(controls, "pointLightY", 1, 2*a).step(0.5);
+  guiPointLight.add(controls, "pointLightZ", -a, a).step(0.5);
   // распределенный
   const guiAreaLight = guiLight.addFolder('areaLight');
   guiAreaLight.addColor(controls, 'areaLightColor').onChange(function (e) {
@@ -696,38 +812,8 @@ function main() {
   scene.add(angularVelocityArrowHelper);
 
   // Оси системы координат
-  const axes = new THREE.AxisHelper(20);
+  const axes = new THREE.AxesHelper(20);
   scene.add(axes);
-
-
-  // КОМПОЗЕР
-  let W = window.innerWidth;
-  let H = window.innerHeight;
-
-  renderer.autoClear = false;
-  let clearPass = new THREE.ClearPass()
-
-  let basicRenderPass = new THREE.RenderPass(scene, camera)
-  basicRenderPass.clear = false
-  let bloomRenderPass = new THREE.RenderPass(bloomScene, camera)
-  bloomRenderPass.clear = false
-
-  let bloomPass = new THREE.UnrealBloomPass(new THREE.Vector2(W, H), 1.5, 0.4, 0.85 );
-  bloomPass.threshold = 0.0;
-  bloomPass.strength = 4;
-  bloomPass.radius = 1.0;
-
-  let outputPass = new THREE.ShaderPass(THREE.CopyShader)
-  outputPass.renderToScreen = true
-
-  const composer = new THREE.EffectComposer(renderer);
-  composer.setSize( W, H );
-
-  composer.addPass(outputPass)
-  composer.addPass(clearPass) 
-  composer.addPass(bloomRenderPass)
-  composer.addPass(bloomPass) 
-  composer.addPass(basicRenderPass)
 
 
   // ЦИКЛИЧЕСКИЙ РЕНДЕРИНГ СЦЕНЫ
@@ -748,15 +834,19 @@ function main() {
       updatePointLight(pointLight, sphereLight, controls, ambColor);
       updateVelocityVector(t);
       updateAngularVelocityVector(t);
-      updateVelocityArrowHelper(ball,velocityArrowHelper)
+      updateVelocityArrowHelper(ball,velocityArrowHelper);
       updateAngularVelocityArrowHelper(ball, angularVelocityArrowHelper);
       updateVisible(controls, velocityArrowHelper, angularVelocityArrowHelper, axes);
       updatePlayButton(playButtonController)
       
       orbitControls.update()
 
-      // рендеринг и обработка композером (применение шейдеров)
-      composer.render()
+      // рендеринг и обработка шейдеров (свечение точечного источника)
+      scene.traverse( darkenNonBloomed );
+      bloomComposer.render()
+      scene.traverse( restoreMaterial );
+      finalComposer.render()
+
       // просто рендеринг 
       // renderer.render(scene, camera);
 
