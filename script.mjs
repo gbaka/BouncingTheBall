@@ -486,8 +486,6 @@ function main() {
 
   // слои 
 
-  
-
 
   // объявление композеров
   const bloomComposer = new THREE.EffectComposer( renderer );
@@ -614,7 +612,7 @@ function main() {
   // pointLight.shadow.camera.far = 130;
   scene.add(pointLight);
 
-  const sphereLightGeometry = new THREE.SphereGeometry(1);   // маленькая сфера, связанная с точечным источником света
+  const sphereLightGeometry = new THREE.SphereGeometry(1, 20, 20);   // маленькая сфера, связанная с точечным источником света
   const sphereLightMaterial = new THREE.MeshBasicMaterial({color: plColor});
   const sphereLight = new THREE.Mesh(sphereLightGeometry, sphereLightMaterial);
   sphereLight.position.x = a/4;
@@ -642,9 +640,13 @@ function main() {
   // const alColor = "#ff0000";
   const alIntensity = 0.25;
   const areaLight = new THREE.RectAreaLight(envColor, alIntensity, n*a, a);
+  const wallAreaLight = new THREE.RectAreaLight(envColor, alIntensity, a, a);
   areaLight.lookAt(0, 1, 0);
   areaLight.position.set(-a*(n-1)/2, 0, 0);
+  wallAreaLight.lookAt(-1, 0, 0);
+  wallAreaLight.position.set(a/2, a/2,0);
   scene.add(areaLight);
+  scene.add(wallAreaLight);
  
 
   // GUI
@@ -683,6 +685,7 @@ function main() {
     directionalLightColor: dlColor,
     directionaLightIntensity: dlIntensity,
     // точечный
+    disablePointlight: false, 
     pointLightColor : plColor,
     pointLightIntensity : plintensity,
     pointLightDistance : plDistance,
@@ -781,12 +784,14 @@ function main() {
   // точечный
   const guiPointLight = guiLight.addFolder('pointLight');
   guiPointLight.addColor(controls, 'pointLightColor').onChange(function (e) {
+    const colorObj =  new THREE.Color(e);
+    console.log(colorObj);
     pointLight.color = new THREE.Color(e);
     sphereLight.material.color.set(e)
   });
   guiPointLight.add(controls, 'pointLightIntensity', 0, 3).onChange(function (e) {
       pointLight.intensity = e;
-      bloomPass.strength = e**2;
+      bloomPass.strength = 2+0.8*e**2;
   });
   guiPointLight.add(controls, 'pointLightDistance', 0, 100).onChange(function (e) {
       pointLight.distance = e;
@@ -794,14 +799,20 @@ function main() {
   guiPointLight.add(controls, "pointLightX", -4*a, a/2-1).step(0.5);
   guiPointLight.add(controls, "pointLightY", 1, 2*a).step(0.5);
   guiPointLight.add(controls, "pointLightZ", -a, a).step(0.5);
+  guiPointLight.add(controls, 'disablePointlight').onChange(function (e) {
+    pointLight.visible = !e;
+    sphereLight.visible = !e;
+  });
   // распределенный
   const guiAreaLight = guiLight.addFolder('areaLight');
   guiAreaLight.addColor(controls, 'areaLightColor').onChange(function (e) {
     areaLight.color = new THREE.Color(e);
+    wallAreaLight.color = new THREE.Color(e);
     ground.material.color = new THREE.Color(e);
   });
   guiAreaLight.add(controls, 'areaLightIntensity', 0, 0.5).step(0.05).onChange(function (e) {
     areaLight.intensity = e;
+    wallAreaLight.intensity = e;
   });
 
 
