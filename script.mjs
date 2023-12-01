@@ -35,7 +35,7 @@ let t = 0;
 const alpha = 2/5;  
 
 // Квант времени
-const time_quantum = 0.035;
+const time_quantum = 0.02;
 
 // Скорость воспроизведения анимации
 let playback_speed = 1;
@@ -478,10 +478,16 @@ function main() {
   orbitControls.zoomSpeed = 1.2
   orbitControls.panSpeed = 0.8
 
+
   // КОМПОЗЕР И ШЕЙДЕРЫ
   let W = window.innerWidth;
   let H = window.innerHeight;
   renderer.autoClear = false;
+
+  // слои 
+
+  
+
 
   // объявление композеров
   const bloomComposer = new THREE.EffectComposer( renderer );
@@ -529,8 +535,9 @@ function main() {
 
   // ПОЛ И СТЕНА
   // Формы и материал объектов
+  const envColor =  0xAAAAAA
   const planeMaterial = new THREE.MeshLambertMaterial({
-    color: 0xAAAAAA
+    color: envColor
   });
   const n = 4;
   const groundGeometry = new THREE.PlaneGeometry(n*a, a);
@@ -584,8 +591,8 @@ function main() {
   spotLight.position.set(-1.2*a, 2.5*a, 1.3*a);
   spotLight.castShadow = true;
   spotLight.shadow.mapSize = new THREE.Vector2(2048, 2048);
-  spotLight.shadow.camera.far = 130;
-  spotLight.shadow.camera.near = 40;
+  // spotLight.shadow.camera.far = 130;
+  // spotLight.shadow.camera.near = 40;
   scene.add(spotLight);
 
   // Фонововый
@@ -602,12 +609,13 @@ function main() {
   const pointLight = new THREE.PointLight(plColor);
   pointLight.distance = 100;
   pointLight.castShadow = true;
-  pointLight.shadow.camera.near = 40;
-  pointLight.shadow.camera.far = 130;
+  pointLight.shadow.mapSize = new THREE.Vector2(1024, 1024);
+  // pointLight.shadow.camera.near = 40;
+  // pointLight.shadow.camera.far = 130;
   scene.add(pointLight);
 
   const sphereLightGeometry = new THREE.SphereGeometry(1);   // маленькая сфера, связанная с точечным источником света
-  const sphereLightMaterial = new THREE.MeshBasicMaterial({color: plColor, visible: 1});
+  const sphereLightMaterial = new THREE.MeshBasicMaterial({color: plColor});
   const sphereLight = new THREE.Mesh(sphereLightGeometry, sphereLightMaterial);
   sphereLight.position.x = a/4;
   sphereLight.position.y = a;
@@ -631,9 +639,9 @@ function main() {
   scene.add(directionalLight);
 
   // Распределенный
-  const alColor = "#ff0000";
-  const alIntensity = 500;
-  const areaLight = new THREE.RectAreaLight(alColor, alIntensity, n*a, a);
+  // const alColor = "#ff0000";
+  const alIntensity = 0.25;
+  const areaLight = new THREE.RectAreaLight(envColor, alIntensity, n*a, a);
   areaLight.lookAt(0, 1, 0);
   areaLight.position.set(-a*(n-1)/2, 0, 0);
   scene.add(areaLight);
@@ -682,7 +690,7 @@ function main() {
     pointLightY: a,
     pointLightZ: 0,
     // распределенный
-    areaLightColor: alColor, 
+    areaLightColor: envColor, 
     areaLightIntensity: alIntensity
   };
 
@@ -701,12 +709,7 @@ function main() {
   guiParameters.add(controls, 'orthogonalRestitutionCoefficient', 0, 1).step(0.1);
   guiParameters.add(controls, 'parallelRestitutionCoefficient', -1, 1).step(0.1);
 
-  // Вспомогательная графика
-  const guiVisible = gui.addFolder('visible');
-  guiVisible.add(controls, "showAngularVelocity");
-  guiVisible.add(controls, "showVelocity");
-  guiVisible.add(controls, "showAxis");
-
+  // Анимация
   const parameters = {
     playButtonFunction: function() {
       animationIsStarted = true;
@@ -723,8 +726,7 @@ function main() {
       playButtonController.name("Старт");
     }
   };
-  
-  // Анимация
+
   const guiAnimation = gui.addFolder('animation');
   guiAnimation.add(controls, "playbackSpeed", -2, 2).step(0.25)
     .onChange(function() {
@@ -736,6 +738,12 @@ function main() {
   );
   const playButtonController =  guiAnimation .add(parameters, 'playButtonFunction').name('Старт');
   guiAnimation.add(parameters, 'restartButtonFunction').name('Перезапустить');
+
+  // Вспомогательная графика
+  const guiVisible = gui.addFolder('visible');
+  guiVisible.add(controls, "showAngularVelocity");
+  guiVisible.add(controls, "showVelocity");
+  guiVisible.add(controls, "showAxis");
 
   // Свет
   const guiLight = gui.addFolder('light');
@@ -792,7 +800,7 @@ function main() {
     areaLight.color = new THREE.Color(e);
     ground.material.color = new THREE.Color(e);
   });
-  guiAreaLight.add(controls, 'areaLightIntensity', 0, 1).onChange(function (e) {
+  guiAreaLight.add(controls, 'areaLightIntensity', 0, 0.5).step(0.05).onChange(function (e) {
     areaLight.intensity = e;
   });
 
