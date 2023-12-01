@@ -885,7 +885,6 @@ function main() {
 
 
   // ЦИКЛИЧЕСКИЙ РЕНДЕРИНГ СЦЕНЫ
-  renderScene();
   function renderScene() {
       if (playAnimation && !animationIsComplete) { 
         t += playback_speed * time_quantum;
