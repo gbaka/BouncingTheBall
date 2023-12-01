@@ -78,7 +78,7 @@ function getCollisionVelocitiesComponents(plane_orientation, ball) {
       break;
   }
 
-  if (playback_speed>0) { 
+  if (playback_speed > 0) { 
     collision_info = collisions[collision_index]
     if (!collision_info)  
     {
@@ -212,7 +212,7 @@ function updateCollisions(ball) {
   }
 
   if (ball.position.y - r < 0){
-    console.log("collision X")
+    console.log("collision Y")
     if (!collisionY) {
 
       let collision_info = getCollisionVelocitiesComponents("Horizontal", ball);
@@ -326,7 +326,6 @@ function updateVelocityVector(t) {
     // Случай невязкой среды
     velocity_vector.set(v_x_0, -g*t+v_y_0, 0)
   }
-
 }
 
 
@@ -435,19 +434,16 @@ function updatePointLight(pointLight, sphereLight, controls) {
 }
 
 
-// const fog = new THREE.FogExp2(0xffffff, 0.01);
-
 /* 
 * Функция задает черный материал несветящимся телам для корректного 
 * применения эффекта unrelBloom к светящимся телам
 **/
 function darkenNonBloomed( obj ) {
-  // + obj.isMesh && 
   if (obj.fog) {
     fogColor = obj.fog.color;
     obj.fog.color = new THREE.Color(0,0,0);
-  } 
-  else if ( bloomLayer.test( obj.layers ) === false ) {
+  }   
+  else if ( bloomLayer.test( obj.layers ) === false ) { // + obj.isMesh && 
     materials[ obj.uuid ] = obj.material;
     obj.material = darkMaterial;
   }
@@ -469,7 +465,7 @@ function restoreMaterial( obj ) {
 
 
 function main() {
-  // СЦЕНЫ, КАМЕРА И РЕНДЕРЕР
+  // СЦЕНF, КАМЕРА И РЕНДЕРЕР
   let camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.01, 10000);
 
   const renderer = new THREE.WebGLRenderer();
@@ -491,20 +487,17 @@ function main() {
 
 
   // КОМПОЗЕР И ШЕЙДЕРЫ
-  let W = window.innerWidth;
-  let H = window.innerHeight;
+  const W = window.innerWidth;
+  const H = window.innerHeight;
   renderer.autoClear = false;
 
-  // слои 
-
-
-  // объявление композеров
+  // Cоздание объектов композеров для bloom-эффекта и финальной постобработки 
   const bloomComposer = new THREE.EffectComposer( renderer );
   bloomComposer.renderToScreen = false;
   const finalComposer = new THREE.EffectComposer(renderer);
   bloomComposer.renderToScreen = true;
 
-  // pass'ы
+  // Создание объектов проходов постобработки 
   let clearPass = new THREE.ClearPass()
 
   let renderPass = new THREE.RenderPass(scene, camera)
@@ -531,15 +524,15 @@ function main() {
   );
   mixPass.needsSwap = true;
 
-  // закрепление pass'ов
-  finalComposer.addPass(clearPass); // ??
-  finalComposer.addPass( renderPass );
-  finalComposer.addPass( mixPass );
-  finalComposer.addPass( outputPass );
+  // Установка соответствующих проходов для композеров
+  finalComposer.addPass(clearPass);
+  finalComposer.addPass(renderPass);
+  finalComposer.addPass(mixPass);
+  finalComposer.addPass(outputPass);
 
-  bloomComposer.addPass(clearPass);  // ??
-  bloomComposer.addPass( renderPass );
-  bloomComposer.addPass( bloomPass );
+  bloomComposer.addPass(clearPass); 
+  bloomComposer.addPass(renderPass);
+  bloomComposer.addPass(bloomPass);
 
 
   // ПОЛ И СТЕНА
@@ -566,7 +559,7 @@ function main() {
 
 
   // МЯЧ
-  // Форма и материал объекта
+  // Форма и материал мяча
   const sphereGeometry = new THREE.SphereGeometry(1, 20, 20);
   sphereGeometry.faces.forEach(function(face){   // двуцветная красно-синяя сфера
       if (face.normal.y > 0) 
@@ -575,11 +568,11 @@ function main() {
       face.color.setHex(0x006AB5); 
   })
 
-  // Мяч
+  // Cоздание объекты и его мяча
   const ball = new THREE.Mesh(sphereGeometry, new THREE.MeshStandardMaterial({
     vertexColors: THREE.FaceColors,
-    // roughness: 1
   }));
+
   ball.position.x =  x_0;
   ball.position.y =  y_0;
   ball.position.z =  z_0;
@@ -591,11 +584,12 @@ function main() {
   scene.add(ground);
   scene.add(wall)
 
-  //ТУМАН
+
+  // ТУМАН
   const fColor = 0x00000;
   const fDensity = 0.00;
   const fog = new THREE.FogExp2(fColor, fDensity);
-  scene.fog= fog
+  scene.fog=fog
 
 
   // СВЕТ
@@ -690,7 +684,7 @@ function main() {
     disableSpotlight: false, 
     spotLightColor: slColor,
     spotLightIntensity: slIntensity,
-      // направленный
+    // направленный
     disableDirectionalLight: false, 
     directionalLightColor: dlColor,
     directionaLightIntensity: dlIntensity,
@@ -706,7 +700,7 @@ function main() {
     areaLightColor: envColor, 
     areaLightIntensity: alIntensity,
 
-    //Туман
+    // Туман
     fogColor: fColor,
     fogDensity: fDensity,
   };
@@ -825,7 +819,8 @@ function main() {
     areaLight.intensity = e;
     wallAreaLight.intensity = e;
   });
-  // туман
+
+  // Туман
   const guiFog = guiLight.addFolder('fog');
   guiFog.addColor(controls, 'fogColor').onChange(function (e) {
     fog.color = new THREE.Color(e);
@@ -834,7 +829,7 @@ function main() {
     fog.density = e;
   })
 
-  // Материалы мяча
+  // Материалы 
   const guiMaterial = gui.addFolder("materials");
 
   const ballMaterials = {
@@ -915,14 +910,14 @@ function main() {
       
       orbitControls.update()
 
-      // рендеринг и обработка шейдеров (свечение точечного источника)
+      // рендеринг и постобработка (? : закоментировать, если не требуется использовать UnrealBloom)
       scene.traverse( darkenNonBloomed );
       bloomComposer.render()
       scene.traverse( restoreMaterial );
       finalComposer.render()
 
-      // просто рендеринг 
-      renderer.render(scene, camera);
+      // просто рендеринг (? : раскоментировать, если не требуется использовать UnrealBloom)
+      // renderer.render(scene, camera); 
 
       requestAnimationFrame(renderScene);
   }

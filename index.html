@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Домашняя работа №1</title>
+    <title>Bouncing Ball</title>
     <style>
         body {
             margin: 0;
@@ -11,63 +11,32 @@
 </head>
 <body  onload="main()">
     <script src="./libs/three.js"></script>
-    <!-- <script src="../BloomLibs/three.js"></script> -->
     <script src="./libs/dat.gui.js"></script>
-    <script src="./libs/OrbitControls.js"></script>
-    <!-- <script src="./shaderMaterial.js"></script> -->
-
-    
+    <script src="./libs/OrbitControls.js"></script> 
     <script src="./libs/EffectComposer.js"></script>
-    <script src="./libs/ShaderPass.js"></script>
     <script src="./libs/CopyShader.js"></script>
+    <script src="./libs/ShaderPass.js"></script>
     <script src="./libs/RenderPass.js"></script>
     <script src="./libs/ClearPass.js"></script>
-    <!-- <script src="BloomLibs/Film.js"></script> -->
     <script src="./libs/UnrealBloomPass.js"></script>
     <script src="./libs/LuminosityHighPassShader.js"></script>
-
-
-
-
     <script src="script.mjs"></script>
 
     <script type="x-shader/x-vertex" id="vertexshader">
-
         varying vec2 vUv;
-
         void main() {
-
             vUv = uv;
-
             gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
-
         }
-
     </script>
 
     <script type="x-shader/x-fragment" id="fragmentshader">
-
         uniform sampler2D baseTexture;
         uniform sampler2D bloomTexture;
-
         varying vec2 vUv;
-
         void main() {
-
             gl_FragColor = ( texture2D( baseTexture, vUv ) + vec4( 1.0 ) * texture2D( bloomTexture, vUv ) );
-
-        }
-
-    </script>
-
-    <script type="importmap">
-        {
-            "imports": {
-                "three": "../build/three.module.js",
-                "three/addons/": "./jsm/"
-            }
         }
     </script>
-
 </body>
 </html>
