@@ -478,16 +478,10 @@ function main() {
   orbitControls.zoomSpeed = 1.2
   orbitControls.panSpeed = 0.8
 
-
   // КОМПОЗЕР И ШЕЙДЕРЫ
   let W = window.innerWidth;
   let H = window.innerHeight;
   renderer.autoClear = false;
-
-  // слои 
-
-  
-
 
   // объявление композеров
   const bloomComposer = new THREE.EffectComposer( renderer );
@@ -566,8 +560,9 @@ function main() {
   })
 
   // Мяч
-  const ball = new THREE.Mesh(sphereGeometry, new THREE.MeshLambertMaterial({
-    vertexColors: THREE.FaceColors // use face colors
+  const ball = new THREE.Mesh(sphereGeometry, new THREE.MeshStandardMaterial({
+    vertexColors: THREE.FaceColors,
+    // roughness: 1
   }));
   ball.position.x =  x_0;
   ball.position.y =  y_0;
@@ -612,7 +607,7 @@ function main() {
   scene.add(pointLight);
 
   const sphereLightGeometry = new THREE.SphereGeometry(1);   // маленькая сфера, связанная с точечным источником света
-  const sphereLightMaterial = new THREE.MeshBasicMaterial({color: plColor});
+  const sphereLightMaterial = new THREE.MeshBasicMaterial({color: plColor, visible: 1});
   const sphereLight = new THREE.Mesh(sphereLightGeometry, sphereLightMaterial);
   sphereLight.position.x = a/4;
   sphereLight.position.y = a;
@@ -633,12 +628,11 @@ function main() {
   directionalLight.shadow.camera.right = 100;
   directionalLight.shadow.camera.top = 20;
   directionalLight.shadow.camera.bottom = -80;
-  const shadowCamera = new THREE.CameraHelper(directionalLight.shadow.camera)
   scene.add(directionalLight);
 
   // Распределенный
-  const alColor = "#ccffcc";
-  const alIntensity = 5;
+  const alColor = "#ff0000";
+  const alIntensity = 500;
   const areaLight = new THREE.RectAreaLight(alColor, alIntensity, n*a, a);
   areaLight.lookAt(0, 1, 0);
   areaLight.position.set(-a*(n-1)/2, 0, 0);
@@ -796,8 +790,9 @@ function main() {
   const guiAreaLight = guiLight.addFolder('areaLight');
   guiAreaLight.addColor(controls, 'areaLightColor').onChange(function (e) {
     areaLight.color = new THREE.Color(e);
+    ground.material.color = new THREE.Color(e);
   });
-  guiAreaLight.add(controls, 'areaLightIntensity', 0, 5).onChange(function (e) {
+  guiAreaLight.add(controls, 'areaLightIntensity', 0, 1).onChange(function (e) {
     areaLight.intensity = e;
   });
 
