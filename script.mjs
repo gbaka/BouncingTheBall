@@ -413,7 +413,7 @@ function updateBallCoordsBounds(guiFolder, ball) {
 
 function updatePlayButton(button) {
   if (animationIsComplete) {
-    button.name("Моделирование завершено")
+    button.name("Simulation is completed")
   } 
 }
 
@@ -429,7 +429,6 @@ function updatePointLight(pointLight, sphereLight, controls) {
   sphereLight.position.x = controls.pointLightX;
   sphereLight.position.y = controls.pointLightY;
   sphereLight.position.z = controls.pointLightZ;
-  // sphereLight.material.color = controls.pointColor;
   pointLight.position.copy(sphereLight.position);
 }
 
@@ -725,7 +724,7 @@ function main() {
     playButtonFunction: function() {
       animationIsStarted = true;
       playAnimation = !playAnimation;
-      playButtonController.name(playAnimation ? "Пауза" : "Продолжить");
+      playButtonController.name(playAnimation ? "Pause" : "Continue");
     },
 
     restartButtonFunction: function() {
@@ -734,7 +733,7 @@ function main() {
       animationIsComplete = false;
       collisions = [];
       collision_index = 0;
-      playButtonController.name("Старт");
+      playButtonController.name("Start");
     }
   };
 
@@ -746,8 +745,8 @@ function main() {
       }
     }
   );
-  const playButtonController =  guiAnimation .add(parameters, 'playButtonFunction').name('Старт');
-  guiAnimation.add(parameters, 'restartButtonFunction').name('Перезапустить');
+  const playButtonController =  guiAnimation .add(parameters, 'playButtonFunction').name('Start');
+  guiAnimation.add(parameters, 'restartButtonFunction').name('Restart');
 
   // Вспомогательная графика
   const guiVisible = gui.addFolder('visible');
@@ -923,4 +922,3 @@ function main() {
   }
   renderScene();
 }
-
