@@ -60,6 +60,8 @@ const materials = {};
 const BLOOM_SCENE = 1;
 const bloomLayer = new THREE.Layers();
 bloomLayer.set( BLOOM_SCENE );
+// временная прееменная для хранения цвета тумана
+let fogColor = undefined;
 
 
 // ФУНКЦИИ АНИМАЦИИ И ОБНОВЛЕНИЯ ПАРАМЕТРОВ
@@ -433,13 +435,19 @@ function updatePointLight(pointLight, sphereLight, controls) {
 }
 
 
+// const fog = new THREE.FogExp2(0xffffff, 0.01);
+
 /* 
 * Функция задает черный материал несветящимся телам для корректного 
 * применения эффекта unrelBloom к светящимся телам
 **/
 function darkenNonBloomed( obj ) {
   // + obj.isMesh && 
-  if ( bloomLayer.test( obj.layers ) === false ) {
+  if (obj.fog) {
+    fogColor = obj.fog.color;
+    obj.fog.color = new THREE.Color(0,0,0);
+  } 
+  else if ( bloomLayer.test( obj.layers ) === false ) {
     materials[ obj.uuid ] = obj.material;
     obj.material = darkMaterial;
   }
@@ -450,10 +458,13 @@ function darkenNonBloomed( obj ) {
 * Возвращает несветящимся телам исходный материал
 **/
 function restoreMaterial( obj ) {
-    if ( materials[ obj.uuid ] ) {
-      obj.material = materials[ obj.uuid ];
-      delete materials[ obj.uuid ];
-    }
+  if (obj.fog) {
+    obj.fog.color = fogColor;
+  } 
+  else if ( materials[ obj.uuid ] ) {
+    obj.material = materials[ obj.uuid ];
+    delete materials[ obj.uuid ];
+  }
 }
 
 
@@ -534,7 +545,7 @@ function main() {
   // ПОЛ И СТЕНА
   // Формы и материал объектов
   const envColor =  0xAAAAAA
-  const planeMaterial = new THREE.MeshLambertMaterial({
+  const planeMaterial = new THREE.MeshStandardMaterial({
     color: envColor
   });
   const n = 4;
@@ -580,6 +591,12 @@ function main() {
   scene.add(ground);
   scene.add(wall)
 
+  //ТУМАН
+  const fColor = 0x00000;
+  const fDensity = 0.00;
+  const fog = new THREE.FogExp2(fColor, fDensity);
+  scene.fog= fog
+
 
   // СВЕТ
   // Прожекторный
@@ -589,27 +606,22 @@ function main() {
   spotLight.position.set(-1.2*a, 2.5*a, 1.3*a);
   spotLight.castShadow = true;
   spotLight.shadow.mapSize = new THREE.Vector2(2048, 2048);
-  // spotLight.shadow.camera.far = 130;
-  // spotLight.shadow.camera.near = 40;
   scene.add(spotLight);
 
   // Фонововый
   let ambColor = "#ccffcc";
   let ambIntensity = 0.5;
   let ambientLight = new THREE.AmbientLight(ambColor ,ambIntensity); 
-  console.log("intensity is ", ambientLight.intensity)
   scene.add( ambientLight );
 
   // Точечный 
   const plColor = "#ff00ff";
-  const plintensity = 2;
+  const plintensity = 1.6;
   const plDistance = 100;
   const pointLight = new THREE.PointLight(plColor);
   pointLight.distance = 100;
   pointLight.castShadow = true;
   pointLight.shadow.mapSize = new THREE.Vector2(1024, 1024);
-  // pointLight.shadow.camera.near = 40;
-  // pointLight.shadow.camera.far = 130;
   scene.add(pointLight);
 
   const sphereLightGeometry = new THREE.SphereGeometry(1, 20, 20);   // маленькая сфера, связанная с точечным источником света
@@ -617,10 +629,9 @@ function main() {
   const sphereLight = new THREE.Mesh(sphereLightGeometry, sphereLightMaterial);
   sphereLight.position.x = a/4;
   sphereLight.position.y = a;
-  sphereLight.position.z = 0;
+  sphereLight.position.z = a;
   scene.add(sphereLight);
-  sphereLight.layers.enable(BLOOM_SCENE)  // добавляем объект к категории светящихся
-
+  sphereLight.layers.enable(BLOOM_SCENE)   // добавляем объект к категории светящихся
 
   // Направленный
   const dlColor = "#ccffcc";
@@ -637,7 +648,6 @@ function main() {
   scene.add(directionalLight);
 
   // Распределенный
-  // const alColor = "#ff0000";
   const alIntensity = 0.25;
   const areaLight = new THREE.RectAreaLight(envColor, alIntensity, n*a, a);
   const wallAreaLight = new THREE.RectAreaLight(envColor, alIntensity, a, a);
@@ -691,10 +701,14 @@ function main() {
     pointLightDistance : plDistance,
     pointLightX: a/4,
     pointLightY: a,
-    pointLightZ: 0,
+    pointLightZ: a,
     // распределенный
     areaLightColor: envColor, 
-    areaLightIntensity: alIntensity
+    areaLightIntensity: alIntensity,
+
+    //Туман
+    fogColor: fColor,
+    fogDensity: fDensity,
   };
 
   const gui = new dat.GUI();
@@ -734,7 +748,6 @@ function main() {
   guiAnimation.add(controls, "playbackSpeed", -2, 2).step(0.25)
     .onChange(function() {
       if (controls.playbackSpeed == 0) {
-        console.log("change")
         controls.playbackSpeed = 0.25;
       }
     }
@@ -784,8 +797,6 @@ function main() {
   // точечный
   const guiPointLight = guiLight.addFolder('pointLight');
   guiPointLight.addColor(controls, 'pointLightColor').onChange(function (e) {
-    const colorObj =  new THREE.Color(e);
-    console.log(colorObj);
     pointLight.color = new THREE.Color(e);
     sphereLight.material.color.set(e)
   });
@@ -813,6 +824,55 @@ function main() {
   guiAreaLight.add(controls, 'areaLightIntensity', 0, 0.5).step(0.05).onChange(function (e) {
     areaLight.intensity = e;
     wallAreaLight.intensity = e;
+  });
+  // туман
+  const guiFog = guiLight.addFolder('fog');
+  guiFog.addColor(controls, 'fogColor').onChange(function (e) {
+    fog.color = new THREE.Color(e);
+  })
+  guiFog.add(controls, 'fogDensity',0, 0.02).step(0.0005).onChange(function (e) {
+    fog.density = e;
+  })
+
+  // Материалы мяча
+  const guiMaterial = gui.addFolder("materials");
+
+  const ballMaterials = {
+    "MeshStandardMaterial" : new THREE.MeshStandardMaterial({
+      vertexColors: THREE.FaceColors,
+    }),
+    "MeshBasicMaterial" : new THREE.MeshBasicMaterial({
+      vertexColors: THREE.FaceColors,
+    }),
+    "MeshLambertMaterial" : new THREE.MeshLambertMaterial({
+      vertexColors: THREE.FaceColors,
+    }), 
+    "MeshPhongMaterial" : new THREE.MeshPhongMaterial({
+      vertexColors: THREE.FaceColors,
+    })
+  }
+
+  const environmentMaterials = {
+    "MeshStandardMaterial" : new THREE.MeshStandardMaterial(),
+    "MeshBasicMaterial" : new THREE.MeshBasicMaterial(),
+    "MeshLambertMaterial" : new THREE.MeshLambertMaterial(), 
+    "MeshPhongMaterial" : new THREE.MeshPhongMaterial()
+  }
+
+  const options = {
+    ballMaterial: 'MeshStandardMaterial',
+    environmentMaterial:  'MeshStandardMaterial'
+  };
+
+  guiMaterial.add(options, 'ballMaterial', ['MeshStandardMaterial', 'MeshBasicMaterial', 'MeshLambertMaterial', 'MeshPhongMaterial']).onChange(function(e) {
+    ball.material = ballMaterials[e];
+  });
+
+  guiMaterial.add(options, 'environmentMaterial', ['MeshStandardMaterial', 'MeshBasicMaterial', 'MeshLambertMaterial', 'MeshPhongMaterial']).onChange(function(e) {
+    const newMaterial = environmentMaterials[e];
+    newMaterial.color = ground.material.color;
+    ground.material = newMaterial;
+    wall.material = newMaterial;
   });
 
 
@@ -862,7 +922,7 @@ function main() {
       finalComposer.render()
 
       // просто рендеринг 
-      // renderer.render(scene, camera);
+      renderer.render(scene, camera);
 
       requestAnimationFrame(renderScene);
   }
