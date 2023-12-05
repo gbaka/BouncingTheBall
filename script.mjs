@@ -35,7 +35,7 @@ let t = 0;
 const alpha = 2/5;  
 
 // Квант времени
-const time_quantum = 0.02;
+const time_quantum = 0.04;
 
 // Скорость воспроизведения анимации
 let playback_speed = 1;
@@ -636,7 +636,7 @@ function main() {
   directionalLight.shadow.camera.far = 130;
   directionalLight.shadow.camera.left = -20;
   directionalLight.shadow.camera.right = 100;
-  directionalLight.shadow.camera.top = 20;
+  directionalLight.shadow.camera.top = 40;
   directionalLight.shadow.camera.bottom = -80;
   scene.add(directionalLight);
 
