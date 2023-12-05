@@ -593,9 +593,13 @@ function main() {
 
   // СВЕТ
   // Прожекторный
-  let slColor = "#ffffff"
-  let slIntensity = 0.5;
+  const slColor = "#ffffff"
+  const slAngle = Math.PI / 3;
+  const slPenubra = 0.5;
+  const slIntensity = 0.5;
   const spotLight = new THREE.SpotLight(slColor, 2, 150);
+  spotLight.angle = slAngle; 
+  spotLight.penumbra = slPenubra;
   spotLight.position.set(-1.2*a, 2.5*a, 1.3*a);
   spotLight.castShadow = true;
   spotLight.shadow.mapSize = new THREE.Vector2(2048, 2048);
@@ -682,6 +686,8 @@ function main() {
     // прожекторный
     disableSpotlight: false, 
     spotLightColor: slColor,
+    spotLightAngle: slAngle, //
+    spotLightPenumbra: slPenubra, //
     spotLightIntensity: slIntensity,
     // направленный
     disableDirectionalLight: false, 
@@ -770,8 +776,14 @@ function main() {
   guiSpotLight.addColor(controls, 'spotLightColor').onChange(function (e) {
     spotLight.color = new THREE.Color(e);
   });
-  guiSpotLight.add(controls, 'spotLightIntensity', 0, 3).onChange(function (e) {
+  guiSpotLight.add(controls, 'spotLightIntensity', 0, 3).step(0.1).onChange(function (e) {
     spotLight.intensity = e;
+  });
+  guiSpotLight.add(controls, 'spotLightAngle', 0, Math.PI / 3).step(0.01).onChange(function (e) {
+    spotLight.angle = e;
+  });
+  guiSpotLight.add(controls, 'spotLightPenumbra', 0, 1).step(0.01).onChange(function (e) {
+    spotLight.penumbra  = e;
   });
   guiSpotLight.add(controls, 'disableSpotlight').onChange(function (e) {
     spotLight.visible = !e;
